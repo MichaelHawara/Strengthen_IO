@@ -1,0 +1,6 @@
+{
+  "name": "Strengthen IO",
+  "description": "Personalized AI skill-building and course creation platform powered by Billy, featuring custom modality breakdowns, adaptive assignments, interactive visual diagrams, real text-to-speech audio lessons, and built-in course notebooks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

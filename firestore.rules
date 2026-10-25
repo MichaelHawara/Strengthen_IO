@@ -1,0 +1,142 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+        'uid', 'email', 'displayName', 'phoneNumber', 'careerGoal',
+        'topicsOfInterest', 'learnerType', 'preferredTools',
+        'onboardingCompleted', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid', 'email', 'displayName', 'phoneNumber', 'careerGoal',
+        'topicsOfInterest', 'learnerType', 'preferredTools',
+        'onboardingCompleted', 'createdAt', 'updatedAt'
+      ]) &&
+      data.uid == request.auth.uid &&
+      data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.email is string && data.email.size() <= 256 &&
+      data.displayName is string && data.displayName.size() <= 120 &&
+      data.phoneNumber is string && data.phoneNumber.size() <= 40 &&
+      data.careerGoal is string && data.careerGoal.size() <= 300 &&
+      data.topicsOfInterest is list && data.topicsOfInterest.size() <= 15 &&
+      (data.topicsOfInterest.size() == 0 || (data.topicsOfInterest[0] is string && data.topicsOfInterest[0].size() <= 80)) &&
+      data.learnerType is string && data.learnerType.size() <= 80 &&
+      data.preferredTools is list && data.preferredTools.size() <= 15 &&
+      (data.preferredTools.size() == 0 || (data.preferredTools[0] is string && data.preferredTools[0].size() <= 80)) &&
+      data.onboardingCompleted is bool &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidCourse(data) {
+      return data.keys().hasAll([
+        'ownerId', 'title', 'subtitle', 'topicPrompt', 'category',
+        'status', 'isCompleted', 'progress', 'configJson',
+        'modulesJson', 'notebook', 'chatHistoryJson',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId', 'title', 'subtitle', 'topicPrompt', 'category',
+        'status', 'isCompleted', 'progress', 'configJson',
+        'modulesJson', 'notebook', 'chatHistoryJson',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.ownerId == request.auth.uid &&
+      data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+      data.subtitle is string && data.subtitle.size() <= 500 &&
+      data.topicPrompt is string && data.topicPrompt.size() >= 1 && data.topicPrompt.size() <= 2000 &&
+      data.category is string && data.category.size() <= 60 &&
+      data.status is string && data.status.size() <= 20 && data.status in ['preview', 'active', 'archived'] &&
+      data.isCompleted is bool &&
+      data.progress is number && data.progress >= 0 && data.progress <= 100 &&
+      data.configJson is string && data.configJson.size() <= 15000 &&
+      data.modulesJson is string && data.modulesJson.size() <= 400000 &&
+      data.notebook is string && data.notebook.size() <= 100000 &&
+      data.chatHistoryJson is string && data.chatHistoryJson.size() <= 200000 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    // 4. Collection Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'email', 'displayName', 'phoneNumber', 'careerGoal',
+          'topicsOfInterest', 'learnerType', 'preferredTools',
+          'onboardingCompleted', 'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /courses/{courseId} {
+      allow get: if isSignedIn() && isValidId(courseId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+        isValidId(courseId) &&
+        isValidCourse(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update: if isSignedIn() &&
+        isValidId(courseId) &&
+        isValidCourse(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        existing().status != 'archived' && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'subtitle', 'status', 'isCompleted', 'progress',
+            'configJson', 'modulesJson', 'notebook', 'chatHistoryJson', 'updatedAt'
+          ])
+        );
+
+      allow delete: if isSignedIn() && isValidId(courseId) && existing().ownerId == request.auth.uid;
+    }
+  }
+}

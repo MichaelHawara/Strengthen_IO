@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-charcoal: #181b20;
+    --bg-charcoal-elevated: #21262d;
+    --bg-charcoal-panel: #282e37;
+    --navy-deep: #16243e;
+    --navy-surface: #1e3154;
+    --navy-border: #2c4470;
+    --olive-primary: #6b8e23;
+    --olive-bright: #84ab35;
+    --olive-muted: #4b631c;
+    --text-primary: #f3f5f7;
+    --text-secondary: #b0b8c4;
+    --text-muted: #7d8796;
+  }
+
+  body {
+    background-color: var(--bg-charcoal);
+    color: var(--text-primary);
+    font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    text-wrap: balance;
+  }
+
+  .font-mono-tabular {
+    font-family: "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom subtle scrollbars for dark charcoal theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #181b20;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2f3742;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #434e5e;
+}
